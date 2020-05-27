@@ -114,7 +114,7 @@ class Register:
                     domo_val["nvalue"] = 0
                     domo_val["svalue"] = str(self.lastval)
                     domo_json = json.dumps(domo_val)
-                    logging.info("Publishing to Domoticz: " + domoticz_topic + " - " + domo_json)
+                    logging.info("Domoticz: " + domoticz_topic)
                     mqc.publish(domoticz_topic, domo_json, qos=0, retain=True)
                 self.last = time.time()
                 updateCallback(self.topic, self.lastval)
@@ -160,7 +160,7 @@ with open(args.registers,"r") as csvfile:
         if size is None or size=="":
             size=defaultrow["Size"]
         domoticz_idx = row["DomoticzIdx"]
-	if domoticz_idx == None or domoticz_idx == "":
+        if domoticz_idx == None or domoticz_idx == "":
             domoticz_idx = defaultrow["DomoticzIdx"]
         r=Register(row["Topic"],freq,slave,fc,row["Register"],size,fmt, domoticz_idx, args.mqtt_publish != "json")
         registers.append(r)
