@@ -25,13 +25,18 @@ import modbus_tk
 import modbus_tk.defines as cst
 from modbus_tk import modbus_rtu
 from modbus_tk import modbus_tcp
+import json
 
 version="0.5"
     
 parser = argparse.ArgumentParser(description='Bridge between ModBus and MQTT')
 parser.add_argument('--mqtt-host', default='localhost', help='MQTT server address. Defaults to "localhost"')
 parser.add_argument('--mqtt-port', default='1883', type=int, help='MQTT server port. Defaults to 1883')
+parser.add_argument('--mqtt-username', default=None, help='Username for MQTT connection (Defaults to no user authentication)')
+parser.add_argument('--mqtt-password', default=None, help='Password for MQTT connection (Defaults to no password)')
 parser.add_argument('--mqtt-topic', default='modbus/', help='Topic prefix to be used for subscribing/publishing. Defaults to "modbus/"')
+parser.add_argument('--mqtt-domoticz-topic', default='domoticz/in', help='Topic prefix to be used for publishing to Domoticz. Defaults to "domoticz/in/"')
+parser.add_argument('--mqtt-publish', default='individual', help='"individual"/"json"/"both" for individual updates, consolidated Json or both. Defaults to "individual"')
 parser.add_argument('--clientid', default='modbus2mqtt', help='Client ID prefix for MQTT connection')
 parser.add_argument('--rtu', help='pyserial URL (or port name) for RTU serial port')
 parser.add_argument('--rtu-baud', default='19200', type=int, help='Baud rate for serial port. Defaults to 19200')
@@ -51,9 +56,16 @@ if args.syslog:
 else:
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
+changed = False
+valuedict = {}
+
 topic=args.mqtt_topic
 if not topic.endswith("/"):
     topic+="/"
+
+domoticz_topic=args.mqtt_domoticz_topic
+if not topic.endswith("/"):
+    domoticz_topic+="/"
 
 logging.info('Starting modbus2mqtt V%s with topic prefix \"%s\"' %(version, topic))
 
@@ -63,35 +75,49 @@ def signal_handler(signal, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 class Register:
-    def __init__(self,topic,frequency,slaveid,functioncode,register,size,format):
+    def __init__(self,topic,frequency,slaveid,functioncode,register,size,format, domoticzIdx, publishIndividual):
         self.topic=topic
+        self.domoticzIdx = domoticzIdx
         self.frequency=int(frequency)
         self.slaveid=int(slaveid)
         self.functioncode=int(functioncode)
         self.register=int(register)
         self.size=int(size)
         self.format=format.split(":",2)
+        self.publishIndividual = publishIndividual
         self.next_due=0
         self.lastval=None
         self.last = None
 
-    def checkpoll(self):
+    def checkpoll(self, updateCallback):
         if self.next_due<time.time():
-            self.poll()
+            self.poll(updateCallback)
             self.next_due=time.time()+self.frequency
 
-    def poll(self):
+    def poll(self, updateCallback):
         try:
             res=master.execute(self.slaveid,self.functioncode,self.register,self.size,data_format=self.format[0])
             r=res[0]
-            if self.format[1]:
+            if len(self.format) >= 3:
+                r = r * float(self.format[2])
+            if len(self.format) >= 2:
                 r=self.format[1] % r
             if r!=self.lastval or (args.force and (time.time() - self.last) > int(args.force)):
                 self.lastval=r
                 fulltopic=topic+"status/"+self.topic
-                logging.info("Publishing " + fulltopic)
-                mqc.publish(fulltopic,self.lastval,qos=0,retain=True)
+                if self.publishIndividual:
+                    logging.info("Publishing individual " + fulltopic)
+                    mqc.publish(fulltopic,self.lastval,qos=0,retain=True)
+                if self.domoticzIdx != None:
+                    domo_val = {}
+                    domo_val["idx"] = int(self.domoticzIdx)
+                    domo_val["nvalue"] = 0
+                    domo_val["svalue"] = str(self.lastval)
+                    domo_json = json.dumps(domo_val)
+                    logging.info("Publishing to Domoticz: " + domoticz_topic + " - " + domo_json)
+                    mqc.publish(domoticz_topic, domo_json, qos=0, retain=True)
                 self.last = time.time()
+                updateCallback(self.topic, self.lastval)
         except modbus_tk.modbus.ModbusError as exc:
             logging.error("Error reading "+self.topic+": Slave returned %s - %s", exc, exc.get_exception_code())
         except Exception as exc:
@@ -104,8 +130,9 @@ registers=[]
 with open(args.registers,"r") as csvfile:
     dialect=csv.Sniffer().sniff(csvfile.read(8192))
     csvfile.seek(0)
-    defaultrow={"Size":1,"Format":">H","Frequency":60,"Slave":1,"FunctionCode":4}
-    reader=csv.DictReader(csvfile,fieldnames=["Topic","Register","Size","Format","Frequency","Slave","FunctionCode"],dialect=dialect)
+    defaultrow={"Size":1,"Format":">H","Frequency":60,"Slave":1,"FunctionCode":4, "DomoticzIdx":None}
+    # reader=csv.DictReader(csvfile,fieldnames=["Topic","Register","Size","Format","Frequency","Slave","FunctionCode"],dialect=dialect)
+    reader=csv.DictReader(csvfile,dialect=dialect)
     for row in reader:
         # Skip header row
         if row["Frequency"]=="Frequency":
@@ -114,7 +141,7 @@ with open(args.registers,"r") as csvfile:
         if row["Topic"][0]=="#":
             continue
         if row["Topic"]=="DEFAULT":
-            temp=dict((k,v) for k,v in row.iteritems() if v is not None and v!="")
+            temp=dict((k,v) for k,v in row.items() if v is not None and v!="")
             defaultrow.update(temp)
             continue
         freq=row["Frequency"]
@@ -132,7 +159,10 @@ with open(args.registers,"r") as csvfile:
         size=row["Size"]
         if size is None or size=="":
             size=defaultrow["Size"]
-        r=Register(row["Topic"],freq,slave,fc,row["Register"],size,fmt)
+        domoticz_idx = row["DomoticzIdx"]
+	if domoticz_idx == None or domoticz_idx == "":
+            domoticz_idx = defaultrow["DomoticzIdx"]
+        r=Register(row["Topic"],freq,slave,fc,row["Register"],size,fmt, domoticz_idx, args.mqtt_publish != "json")
         registers.append(r)
 
 logging.info('Read %u valid register definitions from \"%s\"' %(len(registers), args.registers))
@@ -174,9 +204,23 @@ def connecthandler(mqc,userdata,rc):
 def disconnecthandler(mqc,userdata,rc):
     logging.warning("Disconnected from MQTT broker with rc=%d" % (rc))
 
+def updateCallback(topic, value):
+    global changed
+    global valuedict
+    changed = True
+    valuedict[topic] = value
+
+def jsonOutput(mqc, valueDict):
+    valueJson = json.dumps(valueDict)
+    fulltopic=topic+"status/"
+    logging.info("Publishing " + fulltopic)
+    mqc.publish(fulltopic,valueJson,qos=0,retain=True)
+
 try:
     clientid=args.clientid + "-" + str(time.time())
     mqc=mqtt.Client(client_id=clientid)
+    if args.mqtt_username:
+        mqc.username_pw_set(args.mqtt_username, args.mqtt_password)
     mqc.on_connect=connecthandler
     mqc.on_message=messagehandler
     mqc.on_disconnect=disconnecthandler
@@ -198,7 +242,10 @@ try:
     
     while True:
         for r in registers:
-            r.checkpoll()
+            r.checkpoll(updateCallback)
+        if changed and args.mqtt_publish != "individual":
+            jsonOutput(mqc, valuedict)
+            changed = False
         time.sleep(1)
 
 except Exception as e:
