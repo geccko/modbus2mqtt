@@ -2,10 +2,12 @@ modbus2mqtt
 ===========
 
   Written and (C) 2015 Oliver Wagner <owagner@tellerulam.com> 
+  Extended (C) 2020 Louis Lagendijk <louis.lagendijk@gmail.com>
   
   Provided under the terms of the MIT license.
 
-
+This file needs to be updated for all changes made to the original
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Overview
 --------
 modbus2mqtt is a Modbus master which continously polls slaves and publishes

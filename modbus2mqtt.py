@@ -26,84 +26,20 @@ import modbus_tk.defines as cst
 from modbus_tk import modbus_rtu
 from modbus_tk import modbus_tcp
 import json
+from  modbusConfig import modbusConfig
 
 version = "0.6a"
 
 parser = argparse.ArgumentParser(description='Bridge between ModBus and MQTT')
-parser.add_argument('--mqtt-host',
-                    default='localhost',
-                    help='MQTT server address. Defaults to "localhost"')
-parser.add_argument('--mqtt-port',
-                    default='1883',
-                    type=int,
-                    help='MQTT server port. Defaults to 1883')
-parser.add_argument(
-    '--mqtt-username',
-    default=None,
-    help='Username for MQTT connection (Defaults to no user authentication)')
-parser.add_argument(
-    '--mqtt-password',
-    default=None,
-    help='Password for MQTT connection (Defaults to no password)')
-parser.add_argument(
-    '--mqtt-topic',
-    default='modbus/',
-    help=
-    'Topic prefix to be used for subscribing/publishing. Defaults to "modbus/"')
-parser.add_argument(
-    '--mqtt-domoticz-topic',
-    default='domoticz/in',
-    help=
-    'Topic prefix to be used for publishing to Domoticz. Defaults to "domoticz/in/"'
-)
-parser.add_argument(
-    '--mqtt-publish',
-    default='individual',
-    help=
-    '"individual"/"json"/"both" for individual updates, consolidated Json or both. Defaults to "individual"'
-)
-parser.add_argument('--clientid',
-                    default='modbus2mqtt',
-                    help='Client ID prefix for MQTT connection')
-parser.add_argument('--rtu',
-                    help='pyserial URL (or port name) for RTU serial port')
-parser.add_argument('--rtu-baud',
-                    default='19200',
-                    type=int,
-                    help='Baud rate for serial port. Defaults to 19200')
-parser.add_argument('--rtu-parity',
-                    default='even',
-                    choices=['even', 'odd', 'none'],
-                    help='Parity for serial port. Defaults to even')
-parser.add_argument('--tcp',
-                    help='Act as a Modbus TCP master, connecting to host TCP')
-parser.add_argument('--tcp-port',
-                    default='502',
-                    type=int,
-                    help='Port for Modbus TCP. Defaults to 502')
-parser.add_argument('--registers',
-                    required=True,
-                    help='Register definition file. Required!')
-parser.add_argument(
-    '--log',
-    help=
-    'set log level to the specified value. Defaults to WARNING. Use DEBUG for maximum detail'
-)
-parser.add_argument('--syslog',
-                    action='store_true',
-                    help='enable logging to syslog')
-parser.add_argument(
-    '--force',
-    default='0',
-    type=int,
-    help=
-    'publish values after "force" seconds since publish regardless of change. Defaults to 0 (change only)'
-)
+parser.add_argument('--config', default = "/etc/modbus2mqtt/modbus2mqtt.cfg",
+                    help='path to the configuration file')
 args = parser.parse_args()
+config = modbusConfig(args.config)
 
-if args.log:
-    logging.getLogger().setLevel(args.log)
-if args.syslog:
+
+if config.loglevel:
+    logging.getLogger().setLevel(config.loglevel)
+if config.syslog:
     logging.getLogger().addHandler(logging.handlers.SysLogHandler())
 else:
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
@@ -111,13 +47,11 @@ else:
 changed = False
 valuedict = {}
 
-topic = args.mqtt_topic
+topic = config.mqtt.topic
 if not topic.endswith("/"):
     topic += "/"
 
-domoticz_topic = args.mqtt_domoticz_topic
-#if not topic.endswith("/"):
-#    domoticz_topic += "/"
+domoticz_topic = config.mqtt.domoticz_topic
 
 logging.info('Starting modbus2mqtt V%s with topic prefix \"%s\"' %
              (version, topic))
@@ -166,13 +100,13 @@ class Register:
             if len(self.format) >= 2:
                 r = self.format[1] % r
             if r != self.lastval or (
-                    args.force and (time.time() - self.last) > int(args.force)):
+                    config.mqtt.timed_publish and (time.time() - self.last) > config.mqtt.timed_interval):
                 self.lastval = r
                 fulltopic = topic + "status/" + self.topic
                 if self.publishIndividual:
                     logging.info("Publishing individual " + fulltopic)
                     mqc.publish(fulltopic, self.lastval, qos=0, retain=True)
-                if self.domoticzIdx != None:
+                if config.mqtt.publish_domoticz and self.domoticzIdx != None:
                     domo_val = {}
                     domo_val["idx"] = int(self.domoticzIdx)
                     domo_val["nvalue"] = 0
@@ -202,9 +136,9 @@ defaultrow = {
 
 # Now lets read the register definition
 if sys.version > '3':
-    csvfile = open(args.registers, newline = '')
+    csvfile = open(config.device_definition, newline = '')
 else:
-    csvfile = open(args.registers, "r") 
+    csvfile = open(config.device_definition, "r") 
 
 with csvfile:
     dialect = csv.Sniffer().sniff(csvfile.read(8192))
@@ -251,11 +185,11 @@ with csvfile:
             domoticz_idx = defaultrow["DomoticzIdx"]
 
         r = Register(row["Topic"], freq, slave, fc, row["Register"], size, fmt,
-                     domoticz_idx, args.mqtt_publish != "json")
+                     domoticz_idx, config.mqtt.publish_json)
         registers.append(r)
 
 logging.info('Read %u valid register definitions from \"%s\"' %
-             (len(registers), args.registers))
+             (len(registers), config.device_definition))
 
 
 def messagehandler(mqc, userdata, msg):
@@ -317,37 +251,39 @@ def jsonOutput(mqc, valueDict):
 
 
 try:
-    clientid = args.clientid + "-" + str(time.time())
+    logging.info("Connecting to MQTT server {}:{}".format(config.mqtt.host, config.mqtt.port))
+    clientid = config.mqtt.clientid + "-" + str(time.time())
     mqc = mqtt.Client(client_id=clientid)
-    if args.mqtt_username:
-        mqc.username_pw_set(args.mqtt_username, args.mqtt_password)
+    if config.mqtt.username:
+        mqc.username_pw_set(config.mqtt.username, config.mqtt.password)
     mqc.on_connect = connecthandler
     mqc.on_message = messagehandler
     mqc.on_disconnect = disconnecthandler
     mqc.will_set(topic + "connected", 0, qos=2, retain=True)
     mqc.disconnected = True
-    mqc.connect(args.mqtt_host, args.mqtt_port, 60)
+    mqc.connect(config.mqtt.host, port = config.mqtt.port, keepalive = 60)
     mqc.loop_start()
 
-    if args.rtu:
+    if config.modbus_interface == "RTU":
         master = modbus_rtu.RtuMaster(
-            serial.serial_for_url(args.rtu,
-                                  baudrate=args.rtu_baud,
-                                  parity=args.rtu_parity[0].upper()))
-    elif args.tcp:
-        master = modbus_tcp.TcpMaster(args.tcp, args.tcp_port)
+            serial.serial_for_url(config.rtu.port,
+                                  baudrate=config.rtu.baud,
+                                  parity=config.rtu.parity[0].upper()))
+    elif config.modbus_interface == "TCP":
+        logging.info("opening TCP connection to modbus-TCP  server at {}:{}".format(config.tcp.host, config.tcp.port))
+        master = modbus_tcp.TcpMaster(config.tcp.host, config.tcp.port)
     else:
         logging.error(
-            "You must specify a modbus access method, either --rtu or --tcp")
+            "You must specify a valid modbus access method, either RTU or TCP")
         sys.exit(1)
-
+    logging.info("Done")
     master.set_verbose(True)
     master.set_timeout(5.0)
 
     while True:
         for r in registers:
             r.checkpoll(updateCallback)
-        if changed and args.mqtt_publish != "individual":
+        if changed and config.mqtt.publish_json:
             jsonOutput(mqc, valuedict)
             changed = False
         time.sleep(1)
