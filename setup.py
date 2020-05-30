@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 import os
 from setuptools import setup, find_packages
 import codecs
@@ -11,25 +10,27 @@ def read(fname):
 
 def set_data_files():
     data_files = [
-        ('/etc/modbus2mqtt/', [modbus2mqtt.conf]),
-        ('/etc/modbus2mqtt/', [DDS238.csv]),
-        ('/etc/systemd/system/', ['modbus2mqtt.service']),
+        ('/usr/lib/systemd/system/', ['modbus2mqtt.service'])
     ]
     if not os.path.isfile('/etc/modbus2mqtt/modbus2mqtt.conf'):
         data_files.append(('/etc/modbus2mqtt/', ['modbus2mqtt.conf']))
+    if not os.path.isfile('/etc/modbus2mqtt/DDS238_regs.csv'):
+        data_files.append(('/etc/modbus2mqtt/', ['DDS238_regs.csv']))
+    print(data_files)
     return data_files
 
 
 setup(
     name='modbus2mqtt',
-    version='0.6',
+    version='0.6a',
     packages=find_packages(),
-    scripts=['modbus2mqtt.py'],
+    scripts=['modbus2mqtt'],
     package_data={
-        '': ['*.rst'],
+        '': ['*.md'],
     },
     include_package_data=True,
     data_files=set_data_files(),
+    py_modules= ['modbusConfig'],
     description=
     'Modbus to MQTT server',
     license='MIT',

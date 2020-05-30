@@ -1,4 +1,3 @@
-#
 # modbus2mqtt - Modbus master with MQTT publishing
 #
 # Written and (C) 2015 by Oliver Wagner <owagner@tellerulam.com>
@@ -31,7 +30,7 @@ from  modbusConfig import modbusConfig
 version = "0.6a"
 
 parser = argparse.ArgumentParser(description='Bridge between ModBus and MQTT')
-parser.add_argument('--config', default = "/etc/modbus2mqtt/modbus2mqtt.cfg",
+parser.add_argument('--config', default = "/etc/modbus2mqtt/modbus2mqtt.conf",
                     help='path to the configuration file')
 args = parser.parse_args()
 config = modbusConfig(args.config)

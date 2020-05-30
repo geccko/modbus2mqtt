@@ -8,6 +8,10 @@ modbus2mqtt
 
 This file needs to be updated for all changes made to the original
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+Install:
+<your python executable> setup.py install
+
 Overview
 --------
 modbus2mqtt is a Modbus master which continously polls slaves and publishes
