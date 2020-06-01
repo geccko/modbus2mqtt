@@ -7,7 +7,7 @@ class configError(Exception):
         super(configError, self).__init__(self, self.message)
 
 class configHolder():
-    pass;
+    pass
 
 class modbusConfig(object):
     def __init__(self, config_file):
@@ -38,7 +38,9 @@ class modbusConfig(object):
             self.mqtt.port = config.getint("MQTT", "port", fallback=1883)
             self.mqtt.username = config.get("MQTT", "username", fallback=None)
             self.mqtt.password = config.get("MQTT", "password", fallback=None)
-            self.mqtt.topic = config.get("MQTT", "topic")
+            self.mqtt.topic_prefix = config.get("MQTT", "topic-prefix")
+            if not self.mqtt.topic_prefix.endswith("/"):
+                self.mqtt.topic_prefix += "/"
             self.mqtt.domoticz_topic = config.get("MQTT", "domoticz-topic", fallback="domoticz/in")
             self.mqtt.clientid = config.get("MQTT", "clientid", fallback="modbus2mqtt")
             self.mqtt.timed_publish = config.getboolean("MQTT", "timed-publish", fallback=False)

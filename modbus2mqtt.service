@@ -3,7 +3,7 @@ Description=modbus to mqtt server
 After=basic.target
 [Service]
 Type=simple
-ExecStart=/usr/bin/modbus2mqtt 
+ExecStart=/usr/local/bin/modbus2mqtt 
 Restart=on-abort
 #User=TBA
 StandardOutput=syslog

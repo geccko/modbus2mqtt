@@ -22,7 +22,7 @@ def set_data_files():
 
 setup(
     name='modbus2mqtt',
-    version='0.6a',
+    version='0.6b',
     packages=find_packages(),
     scripts=['modbus2mqtt'],
     package_data={
@@ -30,7 +30,7 @@ setup(
     },
     include_package_data=True,
     data_files=set_data_files(),
-    py_modules= ['modbusConfig'],
+    py_modules= ['modbusConfig', 'Register'],
     description=
     'Modbus to MQTT server',
     license='MIT',

@@ -1,9 +1,8 @@
 Topic,Register,DomoticzIdx,Size,Format,Multiplier,Frequency,Slave,FunctionCode
 #,,,,,,,,
 # Example register definition file. ,,,,,,,,
-# Device is a Eastron SDM630 power meter. Register specification e.g.,,,,,,,,
-# available at http://www.ausboard.net.au/index_files/Eastron/Eastron%20Modbus%20Registers.pdf,,,,,,,,
-#,,,,,,,,
+# Device is a DDS238 power meter. .,,,,,,,,
+
 # The Slave ID is assumed to be 1 (which is default for the SDM630),,,,,,,,
 # The function code used for reading is READ REGISTER (4) as default,,,,,,,,
 # Data format for all registers is float. Polling interval is 15s.,,,,,,,,
