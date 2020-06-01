@@ -39,7 +39,7 @@ class modbusConfig(object):
             self.mqtt.username = config.get("MQTT", "username", fallback=None)
             self.mqtt.password = config.get("MQTT", "password", fallback=None)
             self.mqtt.topic = config.get("MQTT", "topic")
-            self.mqtt.domoticz_topic = config.get("MQTT", "domoticz_topic", fallback="domotcz/in")
+            self.mqtt.domoticz_topic = config.get("MQTT", "domoticz-topic", fallback="domoticz/in")
             self.mqtt.clientid = config.get("MQTT", "clientid", fallback="modbus2mqtt")
             self.mqtt.timed_publish = config.getboolean("MQTT", "timed-publish", fallback=False)
             self.mqtt.timed_interval = config.getint("MQTT", "timed-interval", fallback=15)
