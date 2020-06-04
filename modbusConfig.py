@@ -1,3 +1,7 @@
+#
+# Written and (C) 2020 by Louis Lagendijk >louis.lagendijk@gmail.com>
+# Provided under the terms of the MIT license
+#
 import configparser
 import logging
 
@@ -24,6 +28,8 @@ class modbusConfig(object):
             # general configuration
             section = "GENERAL"
             self.device_definition = config.get("GENERAL", "device_definition")
+            if self.device_definition == None:
+                raise configError('device-definition must be defined')
             self.loglevel = config.get("GENERAL", "loglevel", fallback="INFO")
             self.syslog = config.get("GENERAL", "syslog", fallback=False)
             self.modbus_interface = config.get("GENERAL", "modbus-interface")
@@ -34,26 +40,41 @@ class modbusConfig(object):
 
             section = "MQTT"
             self.mqtt = configHolder()
+            self.mqtt.publish_individual = config.getboolean("MQTT", "publish-individual", fallback="True")
+            self.mqtt.publish_json = config.getboolean("MQTT", "publish-json", fallback=True)
+            self.mqtt.publish_domoticz = config.getboolean("MQTT", "publish-domoticz", fallback=True)
+
             self.mqtt.host = config.get("MQTT", "host", fallback="localhost")
             self.mqtt.port = config.getint("MQTT", "port", fallback=1883)
             self.mqtt.username = config.get("MQTT", "username", fallback=None)
             self.mqtt.password = config.get("MQTT", "password", fallback=None)
-            self.mqtt.topic_prefix = config.get("MQTT", "topic-prefix")
-            if not self.mqtt.topic_prefix.endswith("/"):
-                self.mqtt.topic_prefix += "/"
-            self.mqtt.domoticz_topic = config.get("MQTT", "domoticz-topic", fallback="domoticz/in")
+
+            if self.mqtt.publish_individual:
+                self.mqtt.topic_prefix = config.get("MQTT", "topic-prefix")
+                if self.mqtt.topic_prefix == None:
+                    raise configError('mqtt-topic is not defined in MQTT section')
+                if not self.mqtt.topic_prefix.endswith("/"):
+                    self.mqtt.topic_prefix += "/"
+            
+            if self.mqtt.publish_domoticz:
+                self.mqtt.domoticz_topic = config.get("MQTT", "domoticz-topic", fallback="domoticz/in")
+                if self.mqtt.domoticz_topic == None:
+                    raise configError('domoticz-prefix is not defined in MQTT section')
+                if self.mqtt.domoticz_topic.endswith("/"):
+                    raise configError('domoticz prefix must not end with a "/"')
+        
             self.mqtt.clientid = config.get("MQTT", "clientid", fallback="modbus2mqtt")
             self.mqtt.timed_publish = config.getboolean("MQTT", "timed-publish", fallback=False)
             self.mqtt.timed_interval = config.getint("MQTT", "timed-interval", fallback=15)
-            self.mqtt.publish_individual = config.getboolean("MQTT", "publish-individual", fallback="True")
-            self.mqtt.publish_json = config.getboolean("MQTT", "publish-json", fallback=True)
-            self.mqtt.publish_domoticz = config.getboolean("MQTT", "publish-domoticz", fallback=True)
+            
 
             # RTU modbus configuration
             if self.modbus_interface == "RTU":
                 section = "RTU"
                 self.rtu = configHolder()
                 self.rtu.port= config.get("RTU", "port")
+                if self.rtu.port == None:
+                    raise configError('port must be defined in RTU section')
                 self.rtu.baud = config.getint("RTU", "baud", fallback=9600)
                 self.rtu.parity = config.get("RTU", "parity", fallback="None")
 

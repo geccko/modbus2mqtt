@@ -2,13 +2,12 @@
 #
 # Written and (C) 2015 by Oliver Wagner <owagner@tellerulam.com>
 # Provided under the terms of the MIT license
+# Extended and refactored (C) 2020 by Louis Lagendijk >louis.lagendijk@gmail.com>
 #
 # Requires:
 # - Eclipse Paho for Python - http://www.eclipse.org/paho/clients/python/
 # - modbus-tk for Modbus communication - https://github.com/ljean/modbus-tk/
 #
-
-# TODO: Multiplier, split format?
 
 import argparse
 import logging
@@ -88,9 +87,14 @@ def updateCallback(topic, value):
 
 def jsonOutput(mqc, topic, valueDict):
     valueJson = json.dumps(valueDict)
-    fulltopic = topic + "status/"
-    logging.info("Publishing " + fulltopic)
-    mqc.publish(fulltopic, valueJson, qos=0, retain=True)
+    logging.debug("Publishing json to: " + topic)
+    mqc.publish(topic, valueJson, qos=0, retain=True)
+
+def get_value(row, defaultrow, key):
+    value = row[key]
+    if row[key] is None or row[key] == "":
+        value = defaultrow[key]
+    return value
 
 signal.signal(signal.SIGINT, signal_handler)
 version = "0.6b"
@@ -145,11 +149,13 @@ try:
     registers = []
     defaultrow = {
         "Size": 1,
-        "Format": ">H",
+        "DomoticzIdx": None,
+        "DataFormat": ">H",
+        "Multiplier": 1,
+        "Outputformat": "%f",
         "Frequency": 60,
         "Slave": 1,
-        "FunctionCode": 4,
-        "DomoticzIdx": None
+        "FunctionCode": 3,
     }
 
     # Now lets read the register definition
@@ -163,8 +169,8 @@ try:
         csvfile.seek(0)
         reader = csv.DictReader(csvfile,
                                 fieldnames=[
-                                    "Topic", "Register", "DomoticzIdx", "Size",
-                                    "Format", "Multiplier", "Frequency", "Slave",
+                                    "Topic", "Register", "DomoticzIdx", "Size", "DataFormat",
+                                    "Multiplier", "OutputFormat", "Frequency", "Slave",
                                     "FunctionCode"
                                 ],
                                 dialect="excel")
@@ -183,39 +189,34 @@ try:
                     (k, v) for k, v in row.items() if v is not None and v != "")
                 defaultrow.update(temp)
                 continue
-            freq = row["Frequency"]
-            if freq is None or freq == "":
-                freq = defaultrow["Frequency"]
-            slave = row["Slave"]
-            if slave is None or slave == "":
-                slave = defaultrow["Slave"]
-            fc = row["FunctionCode"]
-            if fc is None or fc == "":
-                fc = defaultrow["FunctionCode"]
-            fmt = row["Format"]
-            if fmt is None or fmt == "":
-                fmt = defaultrow["Format"]
-            size = row["Size"]
-            if size is None or size == "":
-                size = defaultrow["Size"]
-            domoticz_idx = row["DomoticzIdx"]
-            if domoticz_idx == None or domoticz_idx == "":
-                domoticz_idx = defaultrow["DomoticzIdx"]
 
-            r = Register(config.mqtt, row["Topic"], freq, slave, fc, row["Register"], size, fmt,
-                        domoticz_idx)
+            freq = get_value(row, defaultrow, "Frequency")
+            slave = get_value(row, defaultrow, "Slave")
+            fc = get_value(row, defaultrow, "FunctionCode")
+            output_format = get_value(row, defaultrow, "OutputFormat")
+            data_format = get_value(row, defaultrow, "DataFormat")
+            multiplier =get_value(row, defaultrow, "Multiplier")
+            size = get_value(row, defaultrow, "Size")
+            domoticz_idx = get_value(row, defaultrow, "DomoticzIdx")
+                        
+            r = Register(config.mqtt, row["Topic"], row["Register"], row["DomoticzIdx"],size, data_format, multiplier, output_format, freq, slave, fc)
             registers.append(r)
 
     logging.info('Read %u valid register definitions from \"%s\"' %
                 (len(registers), config.device_definition))
+except Exception as e:
+    logging.error("Unhandled error parsing register definitions [" + str(e) + "] in row : " + str(row))
+    sys.exit(1)
 
+try:
     changed = False
     valuedict = {}
     while True:
         for r in registers:
             r.checkpoll(master, mqc, updateCallback)
         if changed and config.mqtt.publish_json:
-            jsonOutput(mqc, config.mqtt.topic_prefix, valuedict)
+            json_topic = config.mqtt.topic_prefix + "status"
+            jsonOutput(mqc, json_topic, valuedict)
             changed = False
         time.sleep(1)
 
