@@ -97,7 +97,7 @@ def get_value(row, defaultrow, key):
     return value
 
 signal.signal(signal.SIGINT, signal_handler)
-version = "0.6b"
+version = "0.6"
 
 parser = argparse.ArgumentParser(description='Bridge between ModBus and MQTT')
 parser.add_argument('--config', default = "/etc/modbus2mqtt/modbus2mqtt.conf",
