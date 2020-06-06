@@ -8,9 +8,12 @@ import logging
 import modbus_tk
 import json
 
+
 class Register:
 
-    def __init__(self, mqtt_config, topic, register, domoticzIdx, size, data_format, multiplier, output_format, frequency, slaveid, functioncode):
+    def __init__(self, mqtt_config, topic, register, domoticzIdx, size,
+                 data_format, multiplier, output_format, frequency, slaveid,
+                 functioncode):
         self.mqtt_config = mqtt_config
         self.topic = topic
         self.register = int(register)
@@ -26,12 +29,12 @@ class Register:
         self.frequency = int(frequency)
         self.slaveid = int(slaveid)
         self.functioncode = int(functioncode)
-        
+
         self.next_due = 0
         self.lastval = None
         self.last = None
 
-    def checkpoll(self, master, mqc,updateCallback):
+    def checkpoll(self, master, mqc, updateCallback):
         if self.next_due < time.time():
             self.poll(master, mqc, updateCallback)
             self.next_due = time.time() + self.frequency
@@ -46,7 +49,8 @@ class Register:
             r = res[0] * self.multiplier
             r = self.output_format % r
             if r != self.lastval or (
-                    self.mqtt_config.timed_publish and (time.time() - self.last) > self .mqtt_config.timed_interval):
+                    self.mqtt_config.timed_publish and
+                (time.time() - self.last) > self.mqtt_config.timed_interval):
                 self.lastval = r
                 fulltopic = self.mqtt_config.topic_prefix + "status/" + self.topic
                 if self.mqtt_config.publish_individual:
@@ -58,8 +62,13 @@ class Register:
                     domo_val["nvalue"] = 0
                     domo_val["svalue"] = str(self.lastval)
                     domo_json = json.dumps(domo_val)
-                    logging.debug("Publishing domoticz topic: {}, idx: {}".format(self.mqtt_config.domoticz_topic, self.domoticzIdx))
-                    mqc.publish(self.mqtt_config.domoticz_topic, domo_json, qos=0, retain=True)
+                    logging.debug(
+                        "Publishing domoticz topic: {}, idx: {}".format(
+                            self.mqtt_config.domoticz_topic, self.domoticzIdx))
+                    mqc.publish(self.mqtt_config.domoticz_topic,
+                                domo_json,
+                                qos=0,
+                                retain=True)
                 self.last = time.time()
                 updateCallback(self.topic, self.lastval)
         except modbus_tk.modbus.ModbusError as exc:
@@ -68,5 +77,3 @@ class Register:
                 exc.get_exception_code())
         except Exception as exc:
             logging.error("Error reading " + self.topic + ": %s", exc)
-
-

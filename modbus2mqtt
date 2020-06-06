@@ -26,12 +26,14 @@ import modbus_tk.defines as cst
 from modbus_tk import modbus_rtu
 from modbus_tk import modbus_tcp
 import json
-from  modbusConfig import modbusConfig
+from modbusConfig import modbusConfig
 from Register import Register
+
 
 def signal_handler(signal, frame):
     print('Exiting ' + sys.argv[0])
     sys.exit(0)
+
 
 def messagehandler(mqc, userdata, msg):
 
@@ -58,9 +60,9 @@ def messagehandler(mqc, userdata, msg):
             return
 
         _res = master.execute(int(slaveid),
-                             int(functioncode),
-                             int(register),
-                             output_value=int(msg.payload))
+                              int(functioncode),
+                              int(register),
+                              output_value=int(msg.payload))
 
     except Exception as e:
         logging.error("Error on message " + msg.topic + " :" + str(e))
@@ -90,21 +92,23 @@ def jsonOutput(mqc, topic, valueDict):
     logging.debug("Publishing json to: " + topic)
     mqc.publish(topic, valueJson, qos=0, retain=True)
 
+
 def get_value(row, defaultrow, key):
     value = row[key]
     if row[key] is None or row[key] == "":
         value = defaultrow[key]
     return value
 
+
 signal.signal(signal.SIGINT, signal_handler)
 version = "0.6"
 
 parser = argparse.ArgumentParser(description='Bridge between ModBus and MQTT')
-parser.add_argument('--config', default = "/etc/modbus2mqtt/modbus2mqtt.conf",
+parser.add_argument('--config',
+                    default="/etc/modbus2mqtt/modbus2mqtt.conf",
                     help='path to the configuration file')
 args = parser.parse_args()
 config = modbusConfig(args.config)
-
 
 if config.loglevel:
     logging.getLogger().setLevel(config.loglevel)
@@ -117,9 +121,10 @@ logging.info('Starting modbus2mqtt V%s with topic prefix \"%s\"' %
              (version, config.mqtt.topic_prefix))
 
 try:
-    logging.info("Connecting to MQTT server {}:{}".format(config.mqtt.host, config.mqtt.port))
+    logging.info("Connecting to MQTT server {}:{}".format(
+        config.mqtt.host, config.mqtt.port))
     clientid = config.mqtt.clientid + "-" + str(time.time())
-    mqc = mqtt.Client(client_id=clientid, userdata = config.mqtt.topic_prefix)
+    mqc = mqtt.Client(client_id=clientid, userdata=config.mqtt.topic_prefix)
     if config.mqtt.username:
         mqc.username_pw_set(config.mqtt.username, config.mqtt.password)
     mqc.on_connect = connecthandler
@@ -127,17 +132,21 @@ try:
     mqc.on_disconnect = disconnecthandler
     mqc.will_set(config.mqtt.topic_prefix + "connected", 0, qos=2, retain=True)
     mqc.disconnected = True
-    mqc.connect(config.mqtt.host, port = config.mqtt.port, keepalive = 60)
+    mqc.connect(config.mqtt.host, port=config.mqtt.port, keepalive=60)
     mqc.loop_start()
 
     if config.modbus_interface == "RTU":
-        logging.info("opening connection to modbus-RTU device {}, {} baud, parity: {}".format(config.rtu.port, config.rtu.baud, config.rtu.parity))
+        logging.info(
+            "opening connection to modbus-RTU device {}, {} baud, parity: {}".
+            format(config.rtu.port, config.rtu.baud, config.rtu.parity))
         master = modbus_rtu.RtuMaster(
             serial.serial_for_url(config.rtu.port,
                                   baudrate=config.rtu.baud,
                                   parity=config.rtu.parity[0].upper()))
     elif config.modbus_interface == "TCP":
-        logging.info("opening TCP connection to modbus-TCP  server at {}:{}".format(config.tcp.host, config.tcp.port))
+        logging.info(
+            "opening TCP connection to modbus-TCP  server at {}:{}".format(
+                config.tcp.host, config.tcp.port))
         master = modbus_tcp.TcpMaster(config.tcp.host, config.tcp.port)
     else:
         logging.error(
@@ -160,18 +169,18 @@ try:
 
     # Now lets read the register definition
     if sys.version > '3':
-        csvfile = open(config.device_definition, newline = '')
+        csvfile = open(config.device_definition, newline='')
     else:
-        csvfile = open(config.device_definition, "r") 
+        csvfile = open(config.device_definition, "r")
 
     with csvfile:
         dialect = csv.Sniffer().sniff(csvfile.read(8192))
         csvfile.seek(0)
         reader = csv.DictReader(csvfile,
                                 fieldnames=[
-                                    "Topic", "Register", "DomoticzIdx", "Size", "DataFormat",
-                                    "Multiplier", "OutputFormat", "Frequency", "Slave",
-                                    "FunctionCode"
+                                    "Topic", "Register", "DomoticzIdx", "Size",
+                                    "DataFormat", "Multiplier", "OutputFormat",
+                                    "Frequency", "Slave", "FunctionCode"
                                 ],
                                 dialect="excel")
         for row in reader:
@@ -179,11 +188,11 @@ try:
             if row["Frequency"] == "Frequency":
                 continue
             # Skip Comment and empty lines (no toic)
-            if row["Topic"] == None or row["Topic"] =="":
+            if row["Topic"] == None or row["Topic"] == "":
                 continue
             if row["Topic"][0] == "#":
                 continue
-        
+
             if row["Topic"] == "DEFAULT":
                 temp = dict(
                     (k, v) for k, v in row.items() if v is not None and v != "")
@@ -195,17 +204,20 @@ try:
             fc = get_value(row, defaultrow, "FunctionCode")
             output_format = get_value(row, defaultrow, "OutputFormat")
             data_format = get_value(row, defaultrow, "DataFormat")
-            multiplier =get_value(row, defaultrow, "Multiplier")
+            multiplier = get_value(row, defaultrow, "Multiplier")
             size = get_value(row, defaultrow, "Size")
             domoticz_idx = get_value(row, defaultrow, "DomoticzIdx")
-                        
-            r = Register(config.mqtt, row["Topic"], row["Register"], row["DomoticzIdx"],size, data_format, multiplier, output_format, freq, slave, fc)
+
+            r = Register(config.mqtt, row["Topic"], row["Register"],
+                         row["DomoticzIdx"], size, data_format, multiplier,
+                         output_format, freq, slave, fc)
             registers.append(r)
 
     logging.info('Read %u valid register definitions from \"%s\"' %
-                (len(registers), config.device_definition))
+                 (len(registers), config.device_definition))
 except Exception as e:
-    logging.error("Unhandled error parsing register definitions [" + str(e) + "] in row : " + str(row))
+    logging.error("Unhandled error parsing register definitions [" + str(e) +
+                  "] in row : " + str(row))
     sys.exit(1)
 
 try:

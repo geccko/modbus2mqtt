@@ -11,4 +11,3 @@ while True:
         break
     output_line = line.rstrip().rstrip(',')
     print(output_line)
-
