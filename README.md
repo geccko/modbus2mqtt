@@ -61,7 +61,7 @@ the following columns:
 * *Register offset*
   The register number, depending on the function code. Zero-based.
 * *DomoticzIdx*, the index for the register used in Domoticz for the device if defined.
-* *Size* (in words)*
+* *Size* (in words)
   The register size in (16 bits) words.
 * *DataFormat*, uses the Python
   "struct" module notation. Common examples:
@@ -84,20 +84,20 @@ by specifying a magic topic suffix of *DEFAULT*
 
 Topics
 ------
-Individual Values are published as simple strings to topics with the general "<prefix>",
+Individual Values are published as simple strings to topics with the general "_prefix_",
 the function code "/status/" and the topic suffix specified per register.
 A value will only be published if it's textual representation has changed,
-e.g. _after_ formatting has been applied. The published MQTT messages have
+_after_ formatting has been applied. The published MQTT messages have
 the retain flag set.
 
 Json values are published as soon as any register has changed its textual represntation.
 Values are published as a json string containing all register topics and their values.
 
 Domoticz messages are pubished to the topic "domoticz/in" with the index (idx) value 
-specified in the register file. the topic can be changed by setting the desired value in
+specified in the register file. The topic can be changed by setting the desired value in
 the coniguration file.
 
-A special topic "<prefix>/connected" is maintained. 
+A special topic "_prefix_/connected" is maintained. 
 It's a enum stating whether the module is currently running and connected to 
 the broker (1) and to the Modbus interface (2).
 
