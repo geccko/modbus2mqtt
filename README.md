@@ -2,6 +2,7 @@ modbus2mqtt
 ===========
 
   Written and (C) 2015 Oliver Wagner <owagner@tellerulam.com> 
+
   Extended (C) 2020 Louis Lagendijk <louis.lagendijk@gmail.com>
   
   Provided under the terms of the MIT license.
@@ -20,15 +21,19 @@ an MQTT message broker is used as the centralized message bus.
 See https://github.com/mqtt-smarthome for a rationale and architectural overview.
 
 Modbus2mqtt can publish results from a modbus devices in 3 formats:
-* *Individual registers to the <topic_prefix>/status/<registername>
-* *As single json message for the defined registers to <topic_prefix>/status
-* *To /domoticz/in with the index set to the value defined in the register file
+* Individual registers to the  _topic_prefix_/status/_registername_
+* As single json message for the defined registers to _topic_prefix_>/status
+* To /domoticz/in with the index set to the value defined in the register file
 
 
 Dependencies
 ------------
 * Eclipse Paho for Python - http://www.eclipse.org/paho/clients/python/
 * modbus-tk for Modbus communication - https://github.com/ljean/modbus-tk/
+* argparse
+* configparser
+
+Dependencies should be installed automatically if OS packages are not found.
 
 
 Command line options
@@ -55,7 +60,7 @@ the following columns:
   be prefixed with the global topic prefix and "status/".
 * *Register offset*
   The register number, depending on the function code. Zero-based.
-* *DomoticzIdx*, the index for the register used in Domoticz for the device
+* *DomoticzIdx*, the index for the register used in Domoticz for the device if defined.
 * *Size* (in words)*
   The register size in (16 bits) words.
 * *DataFormat*, uses the Python
@@ -79,7 +84,7 @@ by specifying a magic topic suffix of *DEFAULT*
 
 Topics
 ------
-Individual Values are published as simple strings to topics with the general <prefix>,
+Individual Values are published as simple strings to topics with the general "<prefix>",
 the function code "/status/" and the topic suffix specified per register.
 A value will only be published if it's textual representation has changed,
 e.g. _after_ formatting has been applied. The published MQTT messages have
@@ -87,10 +92,9 @@ the retain flag set.
 
 Json values are published as soon as any register has changed its textual represntation.
 Values are published as a json string containing all register topics and their values.
-Published.
 
 Domoticz messages are pubished to the topic "domoticz/in" with the index (idx) value 
-specified in hte register file. the topic can be changed by setting the desired value in
+specified in the register file. the topic can be changed by setting the desired value in
 the coniguration file.
 
 A special topic "<prefix>/connected" is maintained. 
