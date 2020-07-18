@@ -1,7 +1,7 @@
 #
 # Written and (C) 2015 by Oliver Wagner <owagner@tellerulam.com>
 # Provided under the terms of the MIT license
-# Extended and refactored (C) 2020 by Louis Lagendijk >louis.lagendijk@gmail.com>
+# Extended and refactored (C) 2020 by Louis Lagendijk <louis.lagendijk@gmail.com>
 #
 import time
 import logging
