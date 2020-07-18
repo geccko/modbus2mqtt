@@ -1,3 +1,4 @@
+#!/usr/bin/python3 -tt
 # modbus2mqtt - Modbus master with MQTT publishing
 #
 # Written and (C) 2015 by Oliver Wagner <owagner@tellerulam.com>
@@ -20,12 +21,13 @@ import io
 import sys
 import csv
 import signal
+import json
 
 import modbus_tk
 import modbus_tk.defines as cst
 from modbus_tk import modbus_rtu
 from modbus_tk import modbus_tcp
-import json
+
 from modbusConfig import modbusConfig
 from Register import Register
 
@@ -73,7 +75,8 @@ def connecthandler(mqc, userdata, rc):
     logging.info("Connected to MQTT broker with rc=%d" % (rc))
     mqc.subscribe(topic + "set/+/" + str(cst.WRITE_SINGLE_REGISTER) + "/+")
     mqc.subscribe(topic + "set/+/" + str(cst.WRITE_SINGLE_COIL) + "/+")
-    mqc.publish(topic + "connected", 2, qos=1, retain=True)
+    logging.info('Sending "online" to topic %s' % (topic + "connected"))
+    mqc.publish(topic + "connected", payload = 'Online', qos=2, retain=True)
 
 
 def disconnecthandler(mqc, userdata, rc):
@@ -130,7 +133,7 @@ try:
     mqc.on_connect = connecthandler
     mqc.on_message = messagehandler
     mqc.on_disconnect = disconnecthandler
-    mqc.will_set(config.mqtt.topic_prefix + "connected", 0, qos=2, retain=True)
+    mqc.will_set(config.mqtt.topic_prefix + "connected", "Offline", qos=2, retain=True)
     mqc.disconnected = True
     mqc.connect(config.mqtt.host, port=config.mqtt.port, keepalive=60)
     mqc.loop_start()
@@ -221,6 +224,8 @@ except Exception as e:
     sys.exit(1)
 
 try:
+    logging.info('Sending "Online" to topic %s' % (config.mqtt.topic_prefix + "connected"))
+    mqc.publish(config.mqtt.topic_prefix + "connected", payload = 'Online', qos=2, retain=True)
     changed = False
     valuedict = {}
     while True:
