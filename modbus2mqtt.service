@@ -1,6 +1,6 @@
 [Unit]
 Description=modbus to mqtt server
-After=basic.target
+After=network-online.target
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/modbus2mqtt 
