@@ -28,7 +28,7 @@ setup(
     },
     include_package_data=True,
     data_files=set_data_files(),
-    py_modules=['modbusConfig', 'Register'],
+    py_modules=['modbusConfig', 'Register', 'hass_discovery'],
     description='Modbus to MQTT server',
     license='MIT',
     long_description=read("README.rst"),

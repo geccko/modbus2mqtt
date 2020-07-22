@@ -8,7 +8,6 @@ import logging
 import modbus_tk
 import json
 
-
 class Register:
 
     def __init__(self, mqtt_config, topic, register, domoticzIdx, size,
@@ -22,6 +21,7 @@ class Register:
             self.domoticzIdx = int(domoticzIdx)
         else:
             self.publish_domoticz = False
+        self.publish_homeassistant = mqtt_config.publish_homeassistant
         self.size = int(size)
         self.data_format = data_format
         self.multiplier = float(multiplier)
@@ -55,7 +55,7 @@ class Register:
                 fulltopic = self.mqtt_config.topic_prefix + "status/" + self.topic
                 if self.mqtt_config.publish_individual:
                     logging.debug("Publishing individual " + fulltopic)
-                    mqc.publish(fulltopic, self.lastval, qos=0, retain=True)
+                    mqc.publish(fulltopic, self.lastval)
                 if self.publish_domoticz:
                     domo_val = {}
                     domo_val["idx"] = int(self.domoticzIdx)
@@ -66,9 +66,8 @@ class Register:
                         "Publishing domoticz topic: {}, idx: {}".format(
                             self.mqtt_config.domoticz_topic, self.domoticzIdx))
                     mqc.publish(self.mqtt_config.domoticz_topic,
-                                domo_json,
-                                qos=0,
-                                retain=True)
+                                domo_json)
+                        
                 self.last = time.time()
                 updateCallback(self.topic, self.lastval)
         except modbus_tk.modbus.ModbusError as exc:

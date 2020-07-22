@@ -30,7 +30,10 @@ from modbus_tk import modbus_tcp
 
 from modbusConfig import modbusConfig
 from Register import Register
+from hass_discovery import hass_discovery
 
+sw_name = "modbus2mqtt"
+sw_version = "0.5"
 
 def signal_handler(signal, frame):
     print('Exiting ' + sys.argv[0])
@@ -76,7 +79,7 @@ def connecthandler(mqc, userdata, rc):
     mqc.subscribe(topic + "set/+/" + str(cst.WRITE_SINGLE_REGISTER) + "/+")
     mqc.subscribe(topic + "set/+/" + str(cst.WRITE_SINGLE_COIL) + "/+")
     logging.info('Sending "online" to topic %s' % (topic + "connected"))
-    mqc.publish(topic + "connected", payload = 'Online', qos=2, retain=True)
+    # mqc.publish(topic + "connected", 'Online', qos=2, retain=True)
 
 
 def disconnecthandler(mqc, userdata, rc):
@@ -93,13 +96,14 @@ def updateCallback(topic, value):
 def jsonOutput(mqc, topic, valueDict):
     valueJson = json.dumps(valueDict)
     logging.debug("Publishing json to: " + topic)
-    mqc.publish(topic, valueJson, qos=0, retain=True)
+    mqc.publish(topic, valueJson)
 
 
 def get_value(row, defaultrow, key):
     value = row[key]
-    if row[key] is None or row[key] == "":
-        value = defaultrow[key]
+    if value is None or value == "":
+        if key in defaultrow:
+            value = defaultrow[key]
     return value
 
 
@@ -140,28 +144,38 @@ try:
 
     if config.modbus_interface == "RTU":
         logging.info(
-            "opening connection to modbus-RTU device {}, {} baud, parity: {}".
-            format(config.rtu.port, config.rtu.baud, config.rtu.parity))
+            "opening connection to modbus-RTU device {}, {} baud, parity: {}".format(config.rtu.port, config.rtu.baud, config.rtu.parity))
         master = modbus_rtu.RtuMaster(
             serial.serial_for_url(config.rtu.port,
                                   baudrate=config.rtu.baud,
                                   parity=config.rtu.parity[0].upper()))
     elif config.modbus_interface == "TCP":
         logging.info(
-            "opening TCP connection to modbus-TCP  server at {}:{}".format(
+            "opening TCP connection to modbus-TCP server at {}:{}".format(
                 config.tcp.host, config.tcp.port))
         master = modbus_tcp.TcpMaster(config.tcp.host, config.tcp.port)
     else:
         logging.error(
             "You must specify a valid modbus access method, either RTU or TCP")
         sys.exit(1)
+
     master.set_verbose(True)
     master.set_timeout(5.0)
 
+    if config.mqtt.publish_homeassistant:
+        hass = hass_discovery(sw_version, config.devicename, config.mqtt.topic_prefix)
+    else:
+        hass = None
+    
     registers = []
     defaultrow = {
+        # commented fields cannot be set from "DEFAULT"
+        #"Topic": None
+        #"Register": None,
+        #"DomoticzIdx": None,
+        "Unit": None,
+        "Icon": None,
         "Size": 1,
-        "DomoticzIdx": None,
         "DataFormat": ">H",
         "Multiplier": 1,
         "Outputformat": "%f",
@@ -181,27 +195,26 @@ try:
         csvfile.seek(0)
         reader = csv.DictReader(csvfile,
                                 fieldnames=[
-                                    "Topic", "Register", "DomoticzIdx", "Size",
+                                    "Topic", "Register", "DomoticzIdx", "Unit", "Icon", "Size",
                                     "DataFormat", "Multiplier", "OutputFormat",
                                     "Frequency", "Slave", "FunctionCode"
                                 ],
                                 dialect="excel")
         for row in reader:
+           
             # Skip header row
             if row["Frequency"] == "Frequency":
                 continue
-            # Skip Comment and empty lines (no toic)
+            # Skip Comment and empty lines (no topic)
             if row["Topic"] == None or row["Topic"] == "":
                 continue
             if row["Topic"][0] == "#":
                 continue
-
             if row["Topic"] == "DEFAULT":
                 temp = dict(
                     (k, v) for k, v in row.items() if v is not None and v != "")
                 defaultrow.update(temp)
                 continue
-
             freq = get_value(row, defaultrow, "Frequency")
             slave = get_value(row, defaultrow, "Slave")
             fc = get_value(row, defaultrow, "FunctionCode")
@@ -209,12 +222,20 @@ try:
             data_format = get_value(row, defaultrow, "DataFormat")
             multiplier = get_value(row, defaultrow, "Multiplier")
             size = get_value(row, defaultrow, "Size")
-            domoticz_idx = get_value(row, defaultrow, "DomoticzIdx")
-
-            r = Register(config.mqtt, row["Topic"], row["Register"],
-                         row["DomoticzIdx"], size, data_format, multiplier,
+            unit = get_value(row, defaultrow, "Unit")
+            icon = get_value(row, defaultrow, "Icon")
+            # no defaults for the following...
+            topic = row["Topic"]
+            domoticz_idx = row["DomoticzIdx"]
+            register = row["Register"]
+            
+            r = Register(config.mqtt, topic, register,
+                         domoticz_idx, size, data_format, multiplier,
                          output_format, freq, slave, fc)
             registers.append(r)
+
+            if hass:
+                hass.addRegister(topic, unit, icon)
 
     logging.info('Read %u valid register definitions from \"%s\"' %
                  (len(registers), config.device_definition))
@@ -224,6 +245,12 @@ except Exception as e:
     sys.exit(1)
 
 try:
+    if hass:
+        hass.publish(mqc)
+except Exception as e:
+    logging.error("Error in publishing auto discovery for homeassistant")
+    exit(1)
+try:
     logging.info('Sending "Online" to topic %s' % (config.mqtt.topic_prefix + "connected"))
     mqc.publish(config.mqtt.topic_prefix + "connected", payload = 'Online', qos=2, retain=True)
     changed = False
@@ -232,7 +259,7 @@ try:
         for r in registers:
             r.checkpoll(master, mqc, updateCallback)
         if changed and config.mqtt.publish_json:
-            json_topic = config.mqtt.topic_prefix + "status"
+            json_topic = config.mqtt.topic_prefix + "SENSOR"
             jsonOutput(mqc, json_topic, valuedict)
             changed = False
         time.sleep(1)

@@ -22,7 +22,7 @@ class modbusConfig(object):
     def __init__(self, config_file):
 
         try:
-            config = configparser.RawConfigParser()
+            config = configparser.RawConfigParser(interpolation = configparser.ExtendedInterpolation())
             read = config.read(config_file)
             if read == []:
                 raise configError(
@@ -43,32 +43,39 @@ class modbusConfig(object):
                 raise configError(
                     "Invalid value {} for modbus-interface (should be TCP or RTU)"
                     .format(self.modbus_interface))
+            self.devicename = config.get("GENERAL", "devicename")
+            if  not self.devicename:
+                raise configError("devicename is not specified in section GENERAL")
 
             # MQTT configuration
 
             section = "MQTT"
             self.mqtt = configHolder()
-            self.mqtt.publish_individual = config.getboolean(
-                "MQTT", "publish-individual", fallback="True")
+            self.mqtt.publish_individual = config.getboolean("MQTT", 
+                                                        "publish-individual", 
+                                                        fallback=False)
             self.mqtt.publish_json = config.getboolean("MQTT",
                                                        "publish-json",
-                                                       fallback=True)
+                                                       fallback=False)
             self.mqtt.publish_domoticz = config.getboolean("MQTT",
                                                            "publish-domoticz",
-                                                           fallback=True)
+                                                           fallback=False)
+            self.mqtt.publish_homeassistant = config.getboolean("MQTT",
+                                                           "publish-homeassistant",
+                                                           fallback=False)
 
             self.mqtt.host = config.get("MQTT", "host", fallback="localhost")
             self.mqtt.port = config.getint("MQTT", "port", fallback=1883)
             self.mqtt.username = config.get("MQTT", "username", fallback=None)
             self.mqtt.password = config.get("MQTT", "password", fallback=None)
 
-            if self.mqtt.publish_individual:
-                self.mqtt.topic_prefix = config.get("MQTT", "topic-prefix")
-                if self.mqtt.topic_prefix == None:
-                    raise configError(
-                        'mqtt-topic is not defined in MQTT section')
-                if not self.mqtt.topic_prefix.endswith("/"):
-                    self.mqtt.topic_prefix += "/"
+            # TODO: rename topic prefix and split into topic and name?
+            self.mqtt.topic_prefix = config.get("MQTT", "topic-prefix")
+            if self.mqtt.topic_prefix == None:
+                raise configError(
+                    'mqtt-topic is not defined in MQTT section')
+            if not self.mqtt.topic_prefix.endswith("/"):
+                self.mqtt.topic_prefix += "/"
 
             if self.mqtt.publish_domoticz:
                 self.mqtt.domoticz_topic = config.get("MQTT",
