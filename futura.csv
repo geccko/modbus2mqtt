@@ -1,0 +1,27 @@
+
+power_consumption,32
+heat_recovering,33https://github.com/geccko/modbus2mqtt
+heating_power,34
+air_flow,35
+fan_pwm_supply,36
+fan_pwm_exhaust,37
+fan_rpm_supply,39
+fan_rpm_exhaust,40
+# 
+# Holding Registers 
+DEFAULT,,1,>H:,15,1,3
+# 
+fventilation,0
+boost_tm,1
+circulation_tm,2
+overpressure_tm,3
+night_tm,4
+party_tm,5
+away_tm,6
+time_prog,7
+temp_set,8
+rh_set,9
+bypass_enable,10
+radon_enable,11
+heating_enable,12
+comfort_enable,13
